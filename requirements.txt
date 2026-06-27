@@ -1,0 +1,3 @@
+# Google MCP Server - Dependencies
+# gws CLI must be installed separately: npm install -g @googleworkspace/cli
+# Python stdlib only - no pip dependencies required

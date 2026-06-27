@@ -1,0 +1,99 @@
+# ==========================================
+# Google MCP Server — .gitignore
+# ==========================================
+
+# --- OAuth & Credentials (NIE committen!) ---
+# Alle JSON-Dateien ignorieren (Secrets, Tokens, Configs)
+*.json
+!.gitignore_allow/*.json
+
+client_secret*.json
+credentials*.json
+google_credentials.json
+credentials.enc
+.encryption_key
+*.token
+*.token.json
+token_cache.json
+*gcp*credentials*.json
+*service_account*.json
+
+# --- gws Auth & Cache ---
+.gws/
+*.enc
+.cache/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.manifest
+*.spec
+.pytest_cache/
+.coverage
+htmlcov/
+*.prof
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+env/
+
+# --- Docker ---
+.env
+.env.*
+.envrc
+docker-compose.override.yml
+*.tar
+*.tar.gz
+
+# --- Workspace (Downloads) ---
+workspace/
+downloads/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-*
+
+# --- OS ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.bak
+*.tmp
+*.temp
+
+# --- Logs ---
+*.log
+logs/
+/log/
+
+# --- Test artifacts ---
+/tmp/
+test_output/
+html_report/
+
+# --- Backup files ---
+*.orig
+*.old
+*.previous
+
+# --- MacOS ---
+*.dmg
+*.app

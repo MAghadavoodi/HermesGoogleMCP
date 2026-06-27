@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  gws-mcp:
+    build: .
+    container_name: gws-mcp
+    restart: unless-stopped
+    ports:
+      - "8777:8777"
+    environment:
+      - GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file
+      - GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE=/root/.config/gws/client_secret.json
+    volumes:
+      # Mount full gws config (credentials + client_secret + token cache)
+      - ~/.config/gws:/root/.config/gws:rw
+      # Mount workspace for downloaded files
+      - ~/Development/HermesProject/hermes-data/workspace:/workspace:rw
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8777/mcp"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - hermes
+
+networks:
+  hermes:
+    external: true
+    name: hermesproject_default
