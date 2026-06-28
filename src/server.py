@@ -5,6 +5,21 @@ from datetime import datetime
 
 os.environ["GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND"] = os.environ.get("GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND", "keyring")
 
+def translate_path(p):
+    """Translate client paths to container paths.
+    Hermes Docker: /opt/data/workspace/…  → /workspace/…
+    Host/OpenCode: /home/…/workspace/…    → /workspace/…
+    """
+    if not p:
+        return p
+    # Hermes Docker path → container path
+    p = p.replace("/opt/data/workspace/", "/workspace/")
+    # Generic: extract everything after /workspace/
+    parts = p.split("/workspace/", 1)
+    if len(parts) == 2:
+        p = "/workspace/" + parts[1]
+    return p
+
 def rpc_result(id_, result):
     return {"jsonrpc":"2.0","id":id_,"result":result}
 
@@ -172,16 +187,7 @@ def do_tool_call(p):
             to_emails = profile.get("emailAddress", "me")
 
         raw_attachments = [p.strip() for p in args.get("attachments","").split(",") if p.strip()]
-        attachments = []
-        for p in raw_attachments:
-            # Hermes Docker path → container path (volume: hermes-data/workspace → /workspace)
-            p = p.replace("/opt/data/workspace/", "/workspace/")
-            # Host path → container path (for clients on host, e.g. OpenCode)
-            # Extract everything after /workspace/ to handle any prefix
-            parts = p.split("/workspace/", 1)
-            if len(parts) == 2:
-                p = "/workspace/" + parts[1]
-            attachments.append(p)
+        attachments = [translate_path(p) for p in raw_attachments]
 
         if attachments:
             # Build multipart MIME with attachments
@@ -264,17 +270,31 @@ def do_tool_call(p):
         if parents:
             meta["parents"] = [p.strip() for p in parents.split(",") if p.strip()]
         cmd = ["gws","drive","files","create","--json",json.dumps(meta)]
+        cleanups = []
         if "localPath" in args:
-            cmd += ["--upload", args["localPath"]]
+            lp = translate_path(args["localPath"])
+            if not os.path.isfile(lp):
+                result = {"error": f"Local file not found: {lp}"}
+            else:
+                import shutil, tempfile
+                tmpf = tempfile.NamedTemporaryFile(suffix=".tmp", delete=False, dir=".")
+                tmpf.close()
+                shutil.copy2(lp, tmpf.name)
+                cleanups.append(tmpf.name)
+                cmd += ["--upload", os.path.basename(tmpf.name)]
         elif "content" in args:
             import tempfile
             tmpf = tempfile.NamedTemporaryFile(mode="w", suffix=".tmp", delete=False, encoding="utf-8", dir=".")
             tmpf.write(args["content"])
             tmpf.close()
+            cleanups.append(tmpf.name)
             cmd += ["--upload", os.path.basename(tmpf.name)]
-        data = run_gws(cmd)
-        if "localPath" not in args and "content" in args:
-            os.unlink(tmpf.name)
+        if "error" not in (result or {}):
+            data = run_gws(cmd)
+            result = {"id":data.get("id"),"name":data.get("name"),"mimeType":data.get("mimeType"),"webViewLink":data.get("webViewLink",""),"size":data.get("size"),"createdTime":data.get("createdTime")}
+        for f in cleanups:
+            try: os.unlink(f)
+            except: pass
         result = {"id":data.get("id"),"name":data.get("name"),"mimeType":data.get("mimeType"),"webViewLink":data.get("webViewLink",""),"size":data.get("size"),"createdTime":data.get("createdTime")}
 
     elif name == "gws_drive_update_file":
@@ -289,18 +309,31 @@ def do_tool_call(p):
         cmd = ["gws","drive","files","update","--params",json.dumps({"fileId":fid})]
         if meta:
             cmd += ["--json", json.dumps(meta)]
+        cleanups = []
         if "localPath" in args:
-            cmd += ["--upload", args["localPath"]]
+            lp = translate_path(args["localPath"])
+            if not os.path.isfile(lp):
+                result = {"error": f"Local file not found: {lp}"}
+            else:
+                import shutil, tempfile
+                tmpf = tempfile.NamedTemporaryFile(suffix=".tmp", delete=False, dir=".")
+                tmpf.close()
+                shutil.copy2(lp, tmpf.name)
+                cleanups.append(tmpf.name)
+                cmd += ["--upload", os.path.basename(tmpf.name)]
         elif "content" in args:
             import tempfile
             tmpf = tempfile.NamedTemporaryFile(mode="w", suffix=".tmp", delete=False, encoding="utf-8", dir=".")
             tmpf.write(args["content"])
             tmpf.close()
+            cleanups.append(tmpf.name)
             cmd += ["--upload", os.path.basename(tmpf.name)]
-        data = run_gws(cmd)
-        if "localPath" not in args and "content" in args:
-            os.unlink(tmpf.name)
-        result = {"id":data.get("id"),"name":data.get("name"),"mimeType":data.get("mimeType"),"webViewLink":data.get("webViewLink",""),"modifiedTime":data.get("modifiedTime")}
+        if "error" not in (result or {}):
+            data = run_gws(cmd)
+            result = {"id":data.get("id"),"name":data.get("name"),"mimeType":data.get("mimeType"),"webViewLink":data.get("webViewLink",""),"modifiedTime":data.get("modifiedTime")}
+        for f in cleanups:
+            try: os.unlink(f)
+            except: pass
 
     elif name == "gws_drive_delete_file":
         data = run_gws(["gws","drive","files","delete","--params",json.dumps({"fileId":args["fileId"]})])

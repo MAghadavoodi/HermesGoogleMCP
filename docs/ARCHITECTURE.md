@@ -276,15 +276,27 @@ docker compose up -d
 mcp_servers:
   gws-mcp:
     url: http://172.17.0.1:8777/mcp
+    transport: streamable-http
     enabled: true
+  cogninote:
+    url: http://localhost:7702/mcp/sse
+    transport: sse
 
 platform_toolsets:
   cli:
   - hermes-cli
+  - cogninote
   - gws-mcp
+  - context7
+  - playwright
+  - tavily
   matrix:
   - hermes-matrix
+  - cogninote
   - gws-mcp
+  - context7
+  - playwright
+  - tavily
 ```
 
 ---
@@ -342,3 +354,26 @@ python3 tests/test_drive.py       # 6 Tests (list/get/create/update/delete/downl
 5. **Kein Export** — Google Docs/Sheets/Slides können nicht als PDF/Office exportiert werden
 6. **Temp-Dateien für Drive Create/Update** — Text-Inhalte werden temporär gespeichert
 7. **Gmail Attachments** — Dateien werden Base64-kodiert in die MIME-Nachricht eingebettet (kein Streaming großer Dateien)
+
+---
+
+## 13. Troubleshooting: MCP-Tools nicht verfügbar
+
+**Fehlerbild:** Hermes-Agent meldet `"MCP-Tools waren leider nicht verfügbar/verbunden"` oder bestimmte MCP-Tools fehlen in einer Plattform (z.B. Matrix, TUI), obwohl der MCP-Server läuft und im Gateway registriert ist.
+
+**Ursache:** Der MCP-Server ist nicht in den `platform_toolsets` der jeweiligen Plattform eingetragen. Die `mcp_servers`-Sektion definiert zwar die Verbindung, aber die `platform_toolsets` steuern, welche Toolsets pro Plattform (cli, matrix, telegram, etc.) sichtbar sind.
+
+**Diagnose:**
+```bash
+# 1. Prüfe ob MCP-Server läuft
+curl http://localhost:7702/health    # cogninote
+curl http://localhost:8777/health    # gws-mcp
+
+# 2. Prüfe Gateway-Log auf MCP-Registrierung
+grep "registered.*tool" hermes-data/gateway/logs/agent.log
+
+# 3. Prüfe platform_toolsets in config.yaml
+grep -A 10 "platform_toolsets:" hermes-data/config.yaml
+```
+
+**Lösung:** Fehlenden MCP-Server zur entsprechenden Plattform in `hermes-data/config.yaml` hinzufügen. Beispiel: `cogninote` unter `matrix` ergänzen, dann Gateway neu starten.
