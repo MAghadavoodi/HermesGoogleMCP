@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """HTTP wrapper that speaks Streamable HTTP MCP protocol."""
-import http.server, json, subprocess, sys, os, urllib.parse
+import http.server, json, signal, subprocess, sys, os, urllib.parse
 
 os.environ['GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND'] = 'file'
 SERVER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'server.py')
@@ -44,4 +44,13 @@ class H(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, *a): pass
 
-http.server.HTTPServer(('0.0.0.0', 8777), H).serve_forever()
+server = http.server.HTTPServer(('0.0.0.0', 8777), H)
+
+def shutdown(signum, frame):
+    server.server_close()
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, shutdown)
+signal.signal(signal.SIGINT, shutdown)
+
+server.serve_forever()

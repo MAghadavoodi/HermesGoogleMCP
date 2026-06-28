@@ -36,6 +36,29 @@ config.yaml:
                           (Calendar v3 · Gmail v1 · Drive v3)
 ```
 
+## Container-Resilienz
+
+Der Docker-Container ist gegen Port-Konflikte und unsauberes Herunterfahren abgesichert:
+
+| Maßnahme | Ort | Wirkung |
+|----------|-----|---------|
+| `init: true` | `docker-compose.yml` | Tini als Init-Prozess — fängt Signale korrekt ab, verhindert Zombie-Prozesse |
+| `stop_grace_period: 10s` | `docker-compose.yml` | 10 Sekunden für sauberes Herunterfahren vor SIGKILL |
+| `signal.signal(SIGTERM, ...)` | `http_server.py` | Schließt den HTTP-Socket bei Docker-Stop — Port sofort frei |
+| `restart: unless-stopped` | `docker-compose.yml` | Container startet nach Crash oder Reboot automatisch neu |
+
+**Ablauf bei `docker stop` / Reboot:**
+1. Docker sendet `SIGTERM` an den Container
+2. `http_server.py` fängt das Signal und ruft `server.server_close()` auf
+3. Port 8777 wird sofort freigegeben — kein Port-Konflikt beim Neustart
+4. Container beendet mit Exit-Code `0` (statt 137/SIGKILL)
+5. Nach Reboot startet Docker den Container automatisch (`unless-stopped`)
+
+**Manuelle Fehlerbehebung** (falls Container im Status `Exited (137)` hängt):
+```bash
+docker start gws-mcp
+```
+
 ## Tools
 
 | Tool | Dienst | Beschreibung |
