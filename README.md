@@ -80,6 +80,29 @@ if len(parts) == 2:
 Voraussetzung: Der Workspace ist als Volume in den Container eingehängt
 (`docker-compose.yml` → `~/Development/HermesProject/hermes-data/workspace:/workspace`).
 
+### Argument-Größenlimit (E2BIG)
+
+Beim Senden großer Anhänge (>100 KB) würde die base64-kodierte MIME-Nachricht
+das Linux-Arg-Limit von 128 KB pro Argument überschreiten (`[Errno 7] Argument list too long`).
+
+**Lösung**: Statt `--json {"raw":"<base64>"}` wird die MIME-Nachricht in eine
+Temp-Datei geschrieben und via `--upload`-Flag an gws übergeben – die
+Gmail API verarbeitet sie als `multipart/upload` (`message/rfc822`).
+
+```python
+# MIME-Nachricht in Temp-Datei im cwd (/app) schreiben
+tf = NamedTemporaryFile(suffix=".eml", delete=False, dir=".")
+tf.write(mime_bytes)
+tf.close()
+
+# Statt --json mit inline-base64 → --upload mit Temp-Datei
+run_gws(["gws","gmail","users","messages","send",
+         "--params", '{"userId":"me"}',
+         "--upload", os.path.basename(tf.name),
+         "--upload-content-type", "message/rfc822"])
+os.unlink(tf.name)
+```
+
 ## Tools
 
 | Tool | Dienst | CRUD | Beschreibung |
