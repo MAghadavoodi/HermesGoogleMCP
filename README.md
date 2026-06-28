@@ -55,6 +55,31 @@ Der Docker-Container ist gegen Port-Konflikte und unsauberes Herunterfahren abge
 docker start gws-mcp
 ```
 
+## Attachments & Pfadübersetzung
+
+`gws_gmail_send_message` unterstützt Dateianhänge per MIME-Multipart. Da unterschiedliche MCP-Clients
+verschiedene Pfadformate übergeben, übersetzt der Server automatisch:
+
+| Quelle | Pfadbeispiel | Container-Pfad |
+|--------|-------------|----------------|
+| **Hermes TUI** (Docker) | `/opt/data/workspace/report.pdf` | `/workspace/report.pdf` |
+| **OpenCode** (Host) | `/home/masoud/.../workspace/report.pdf` | `/workspace/report.pdf` |
+
+**Funktionsweise** (`server.py` Zeile 176–183):
+
+```python
+# 1. Hermes Docker-Pfad: /opt/data/workspace/ → /workspace/
+p = p.replace("/opt/data/workspace/", "/workspace/")
+
+# 2. Host-Pfad (OpenCode & Co.): Extrahiere alles ab /workspace/
+parts = p.split("/workspace/", 1)
+if len(parts) == 2:
+    p = "/workspace/" + parts[1]
+```
+
+Voraussetzung: Der Workspace ist als Volume in den Container eingehängt
+(`docker-compose.yml` → `~/Development/HermesProject/hermes-data/workspace:/workspace`).
+
 ## Tools
 
 | Tool | Dienst | CRUD | Beschreibung |

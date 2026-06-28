@@ -172,11 +172,15 @@ def do_tool_call(p):
             to_emails = profile.get("emailAddress", "me")
 
         raw_attachments = [p.strip() for p in args.get("attachments","").split(",") if p.strip()]
-        # Translate Docker container paths to host paths
         attachments = []
         for p in raw_attachments:
-            p = p.replace("/opt/data/", os.path.expanduser("~/Development/HermesProject/hermes-data/"))
-            p = p.replace("/opt/hermes/", os.path.expanduser("~/Development/HermesProject/"))
+            # Hermes Docker path → container path (volume: hermes-data/workspace → /workspace)
+            p = p.replace("/opt/data/workspace/", "/workspace/")
+            # Host path → container path (for clients on host, e.g. OpenCode)
+            # Extract everything after /workspace/ to handle any prefix
+            parts = p.split("/workspace/", 1)
+            if len(parts) == 2:
+                p = "/workspace/" + parts[1]
             attachments.append(p)
 
         if attachments:
