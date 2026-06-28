@@ -3,7 +3,7 @@
 import base64, json, os, subprocess, sys
 from datetime import datetime
 
-os.environ["GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND"] = "file"
+os.environ["GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND"] = os.environ.get("GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND", "keyring")
 
 def rpc_result(id_, result):
     return {"jsonrpc":"2.0","id":id_,"result":result}
@@ -91,8 +91,18 @@ def do_tool_call(p):
         if not body:
             result = {"error":"No fields to update"}
         else:
+            if "start" not in body or "end" not in body:
+                existing = run_gws(["gws","calendar","events","get","--params",json.dumps({"calendarId":calendar_id,"eventId":event_id})])
+                if "error" not in existing:
+                    if "start" not in body and "start" in existing:
+                        body["start"] = existing["start"]
+                    if "end" not in body and "end" in existing:
+                        body["end"] = existing["end"]
             data = run_gws(["gws","calendar","events","update","--params",json.dumps({"calendarId":calendar_id,"eventId":event_id}),"--json",json.dumps(body)])
-            result = {"id":data.get("id"),"summary":data.get("summary"),"htmlLink":data.get("htmlLink"),"status":data.get("status"),"updated":data.get("updated")}
+            if "error" in data:
+                result = data
+            else:
+                result = {"id":data.get("id"),"summary":data.get("summary"),"htmlLink":data.get("htmlLink"),"status":data.get("status"),"updated":data.get("updated")}
 
     elif name == "gws_calendar_delete_event":
         calendar_id = args.get("calendarId","primary")

@@ -2,7 +2,7 @@
 """HTTP wrapper that speaks Streamable HTTP MCP protocol."""
 import http.server, json, signal, subprocess, sys, os, urllib.parse
 
-os.environ['GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND'] = 'file'
+os.environ['GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND'] = os.environ.get('GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND', 'keyring')
 SERVER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'server.py')
 
 class H(http.server.BaseHTTPRequestHandler):

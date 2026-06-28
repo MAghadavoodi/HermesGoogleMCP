@@ -18,20 +18,16 @@ Dieser Server löst alle drei Probleme: Reines Python (stdlib-only), HTTP-Transp
 
 ```
 Hermes Gateway (Docker)         Host (masoud)
-─────────────────────────       ─────────────────────
-config.yaml:                       
-  gws-mcp:                    POST /mcp (JSON-RPC)
-    url: http://172.17.0.1 ───► http_server.py (Port 8777)
-    :8777/mcp                      │
-                                   │ subprocess stdin/stdout
-                                   ▼
-                               server.py (MCP Engine)
-                                   │
-                                   │ subprocess CLI
-                                   ▼
-                               gws CLI (OAuth 2.0)
-                                   │
-                                   ▼
+─────────────────────────       ─────────────────────────
+config.yaml:                    ┌──────────────────────┐
+  gws-mcp:                      │ gws-mcp Container    │
+    url: http://172.17.0.1 ───► │  http_server.py      │
+    :8777/mcp                   │  :8777 → server.py   │
+                                │      → gws CLI       │
+                                │      → Google APIs   │
+                                └──────────────────────┘
+                                  ▲ Port 8777 (forwarded)
+                                  ▼
                           Google Workspace APIs
                           (Calendar v3 · Gmail v1 · Drive v3)
 ```
@@ -61,14 +57,22 @@ docker start gws-mcp
 
 ## Tools
 
-| Tool | Dienst | Beschreibung |
-|------|--------|-------------|
-| `gws_calendar_list_events` | Calendar | Events auflisten (Zeitraum, max. Anzahl) |
-| `gws_gmail_list_messages` | Gmail | E-Mail-IDs auflisten (mit Suchfilter) |
-| `gws_gmail_get_message` | Gmail | E-Mail-Inhalt + Body (includeBody=true) |
-| `gws_drive_list_files` | Drive | Dateien/Ordner auflisten (mit Suchfilter) |
-| `gws_drive_get_file` | Drive | Datei-Metadaten abrufen |
-| `gws_drive_download_file` | Drive | Datei herunterladen → workspace/ |
+| Tool | Dienst | CRUD | Beschreibung |
+|------|--------|------|-------------|
+| `gws_calendar_list_events` | Calendar | READ | Events auflisten (Zeitraum, max. Anzahl) |
+| `gws_calendar_create_event` | Calendar | CREATE | Termin erstellen mit Teilnehmern |
+| `gws_calendar_update_event` | Calendar | UPDATE | Termin ändern |
+| `gws_calendar_delete_event` | Calendar | DELETE | Termin löschen |
+| `gws_gmail_list_messages` | Gmail | READ | E-Mail-IDs auflisten (Suchfilter) |
+| `gws_gmail_get_message` | Gmail | READ | E-Mail-Inhalt + Body (includeBody=true) |
+| `gws_gmail_send_message` | Gmail | CREATE | E-Mail senden mit Anhängen (MIME) |
+| `gws_gmail_delete_message` | Gmail | DELETE | E-Mail in Papierkorb verschieben |
+| `gws_drive_list_files` | Drive | READ | Dateien/Ordner auflisten |
+| `gws_drive_get_file` | Drive | READ | Datei-Metadaten abrufen |
+| `gws_drive_create_file` | Drive | CREATE | Datei erstellen/hochladen |
+| `gws_drive_update_file` | Drive | UPDATE | Datei ändern/ersetzen |
+| `gws_drive_delete_file` | Drive | DELETE | Datei permanent löschen |
+| `gws_drive_download_file` | Drive | READ | Datei herunterladen → workspace/ |
 
 ## Voraussetzungen
 
@@ -76,21 +80,44 @@ docker start gws-mcp
 - **OAuth 2.0 Desktop-Client** (Google Cloud Console → Credentials)
 - **Authentifizierung** via `gws auth login`
 
-## Schnellstart
+## Deployment
+
+Der Server läuft als Docker-Container mit systemd-Integration für automatischen Start nach Reboot.
+
+### Docker Compose
 
 ```bash
-# 1. Abhängigkeiten installieren
-npm install -g @googleworkspace/cli
+# 1. Projekt klonen
+git clone https://github.com/MAghadavoodi/HermesGoogleMCP.git ~/Development/Google_MCP
+cd ~/Development/Google_MCP
 
-# 2. Authentifizieren (einmalig)
-GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file gws auth login
+# 2. Container bauen & starten
+docker compose up -d gws-mcp
 
-# 3. Server starten
-git clone https://github.com/MAghadavoodi/HermesGoogleMCP.git
-cd HermesGoogleMCP
-python3 src/http_server.py &
+# 3. Status prüfen
+docker ps --filter name=gws-mcp
+```
 
-# 4. Hermes config.yaml
+### systemd-Service (automatischer Start)
+
+```bash
+# Service aktivieren (startet Container bei Login)
+systemctl --user enable --now gws-mcp.service
+
+# Service verwalten
+systemctl --user status gws-mcp
+systemctl --user stop gws-mcp
+systemctl --user start gws-mcp
+```
+
+Die systemd-Unit delegiert an Docker (`docker start`/`docker stop`).  
+Die `restart: unless-stopped`-Policy im Container stellt sicher, dass er bei Crash oder Reboot automatisch neu startet.
+
+### Hermes-Konfiguration
+
+In `hermes-data/config.yaml`:
+
+```yaml
 mcp_servers:
   gws-mcp:
     url: http://172.17.0.1:8777/mcp
@@ -101,34 +128,33 @@ platform_toolsets:
   - gws-mcp
   matrix:
   - gws-mcp
-
-# 5. Reload
-hermes mcp reload
 ```
 
 ## Tests
 
 ```bash
-python3 tests/test_calendar.py   # 2/2 ✅
-python3 tests/test_gmail.py      # 2/2 ✅
-python3 tests/test_drive.py      # 3/3 ✅
+python3 tests/test_calendar.py   # Calendar CRUD
+python3 tests/test_gmail.py      # Gmail CRUD
+python3 tests/test_drive.py      # Drive CRUD
+python3 tests/test_all_crud.py   # Full CRUD integration
 ```
 
 ## Projektstruktur
 
 ```
-HermesGoogleMCP/
+Google_MCP/
 ├── src/
-│   ├── server.py          # MCP JSON-RPC Engine (6 Tools)
-│   └── http_server.py     # HTTP-Wrapper (Port 8777)
+│   ├── server.py          # MCP JSON-RPC Engine (CRUD + Attachments)
+│   └── http_server.py     # HTTP-Wrapper (Port 8777, SIGTERM-Handler)
 ├── tests/
 │   ├── test_calendar.py
 │   ├── test_gmail.py
-│   └── test_drive.py
+│   ├── test_drive.py
+│   └── test_all_crud.py
 ├── docs/
 │   └── ARCHITECTURE.md    # Detaillierte Architektur-Doku
-├── Dockerfile             # Docker-Image (experimentell)
-├── docker-compose.yml     # Docker-Compose (experimentell)
+├── Dockerfile             # Docker-Image (ubuntu:24.04 + gws CLI)
+├── docker-compose.yml     # Docker Compose (init, stop_grace_period)
 ├── requirements.txt       # stdlib-only, keine pip-Abhängigkeiten
 └── .gitignore
 ```

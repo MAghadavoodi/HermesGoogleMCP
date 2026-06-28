@@ -1,6 +1,6 @@
 # Google MCP Server — Architektur & Design
 
-> Stand: Juni 2026 · Projektpfad: `~/Development/HermesProject/Google_MCP/`
+> Stand: Juni 2026 · Projektpfad: `~/Development/Google_MCP/`
 > Version: 2.2.0 (Full CRUD + Attachments + Path Translation + Tempfile Fix)
 
 ---
@@ -266,7 +266,7 @@ nohup python3 src/http_server.py &>/tmp/gws-mcp.log &
 ### 9.2 Docker Compose
 
 ```bash
-cd ~/Development/HermesProject/Google_MCP
+cd ~/Development/Google_MCP
 docker compose up -d
 ```
 
@@ -292,7 +292,7 @@ platform_toolsets:
 ## 10. Tests
 
 ```bash
-cd ~/Development/HermesProject/Google_MCP
+cd ~/Development/Google_MCP
 
 # Alle CRUD-Tests (14 Tests)
 python3 tests/test_all_crud.py
