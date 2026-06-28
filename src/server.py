@@ -206,20 +206,32 @@ def do_tool_call(p):
             if "error" in (result or {}):
                 pass
             else:
-                raw_bytes = msg.as_bytes()
-                raw_b64 = base64.b64encode(raw_bytes).decode("ascii")
-                data = run_gws(["gws","gmail","users","messages","send","--params",json.dumps({"userId":"me"}),"--json",json.dumps({"raw":raw_b64})])
+                # Write MIME to temp file, use --upload to avoid argv size limit
+                import tempfile as tmpmod
+                mime_bytes = msg.as_bytes()
+                tf = tmpmod.NamedTemporaryFile(suffix=".eml", delete=False, dir=".")
+                tf.write(mime_bytes)
+                tf.close()
+                tmp_rel = os.path.basename(tf.name)
+                data = run_gws(["gws","gmail","users","messages","send","--params",json.dumps({"userId":"me"}),"--upload",tmp_rel,"--upload-content-type","message/rfc822"])
+                os.unlink(tf.name)
                 result = {"id":data.get("id"),"threadId":data.get("threadId"),"labelIds":data.get("labelIds",[]),"sent":True,"attachments":len(attachments)}
         else:
+            # Plain text without attachments – use upload for consistency
+            import tempfile as tmpmod
             msg = email.mime.text.MIMEText(args.get("body",""), "plain", "utf-8")
             msg["to"] = to_emails
             msg["subject"] = args["subject"]
             msg["from"] = "me"
             if "cc" in args: msg["cc"] = args["cc"]
             if "bcc" in args: msg["bcc"] = args["bcc"]
-            raw_bytes = msg.as_bytes()
-            raw_b64 = base64.b64encode(raw_bytes).decode("ascii")
-            data = run_gws(["gws","gmail","users","messages","send","--params",json.dumps({"userId":"me"}),"--json",json.dumps({"raw":raw_b64})])
+            mime_bytes = msg.as_bytes()
+            tf = tmpmod.NamedTemporaryFile(suffix=".eml", delete=False, dir=".")
+            tf.write(mime_bytes)
+            tf.close()
+            tmp_rel = os.path.basename(tf.name)
+            data = run_gws(["gws","gmail","users","messages","send","--params",json.dumps({"userId":"me"}),"--upload",tmp_rel,"--upload-content-type","message/rfc822"])
+            os.unlink(tf.name)
             result = {"id":data.get("id"),"threadId":data.get("threadId"),"labelIds":data.get("labelIds",[]),"sent":True}
 
     elif name == "gws_gmail_delete_message":
